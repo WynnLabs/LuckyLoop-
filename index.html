@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LuckyLoop V2 - Military Grade</title>
+  <meta name="description" content="LuckyLoop V2 - Military Grade Lottery dApp. Enter the draw, win crypto instantly. Secure, verified, real payouts."/>
+  <meta property="og:title" content="LuckyLoop V2 - Military Grade Lottery"/>
+  <meta property="og:description" content="Join LuckyLoop, the crypto lottery built for speed, odds, and instant payouts."/>
+  <meta property="og:image" content="https://wynn73.github.io/assets/luckyloppromo.jpg"/>
+  <meta property="og:url" content="https://wynn73.github.io/LuckyLoop-DApp/"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+  <style>
+    :root {
+      --primary: #6a1b9a;
+      --error: #ff6b6b;
+      --light: #f9f7ff;
+      --success: #28a745;
+    }
+    body {
+      font-family: 'Courier New', monospace;
+      background: var(--light);
+      text-align: center;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 {
+      color: var(--primary);
+    }
+    button {
+      padding: 10px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 10px;
+      font-size: 16px;
+    }
+    button:disabled {
+      background: grey;
+      cursor: not-allowed;
+    }
+    #status {
+      color: var(--error);
+      margin: 10px 0;
+      min-height: 20px;
+    }
+    .success {
+      color: var(--success);
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      button {
+        width: 100%;
+        margin: 5px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>LuckyLoop V2</h1>
+  <img src="https://wynn73.github.io/assets/luckyloppromo.jpg" alt="LuckyLoop Military Grade Promo" width="100%" style="max-width:600px;"/>
+  <div id="walletStatus">Wallet: Not Connected</div>
+  <div id="contractStatus">Contract Wallet: 0x7F...3A4B (System Controlled)</div>
+  <div id="roundStatus">Round: Loading...</div>
+  <div id="status"></div>
+  <button id="connectWalletBtn">CONNECT SOLDIER WALLET</button>
+  <button id="enterButton" disabled>ENTER LOTTERY (0.1 ETH)</button>
+
+  <script type="module">
+    import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.min.js';
+    import { Web3Modal } from 'https://cdn.jsdelivr.net/npm/@web3modal/ethers@4.2.1/dist/index.js';
+
+    const CONTRACT_ADDRESS = '0x7102a550B0EcbBCbD289630Cd560189B44674192';
+    const TREASURY_ADDRESS = '0x7F3a1c03D9B3a4B3F3A4B3F3A4B3F3A4B3F3A4B';
+    const ABI = [
+      { "inputs": [], "name": "enterLottery", "outputs": [], "stateMutability": "payable", "type": "function" },
+      { "inputs": [], "name": "currentRound", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+    ];
+
+    const web3Modal = new Web3Modal({
+      projectId: 'cdd3d29105aa9b855cdd4b4fe58e98a0',
+      themeMode: 'light',
+      walletConnectVersion: 2
+    });
+
+    let provider, signer, contract, activeWallet;
+
+    function showStatus(message, isSuccess = false) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = message;
+      statusDiv.className = isSuccess ? 'success' : '';
+    }
+
+    async function connectWallet() {
+      try {
+        provider = await web3Modal.connect();
+        provider = new ethers.BrowserProvider(provider);
+        signer = await provider.getSigner();
+        activeWallet = await signer.getAddress();
+        contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+        const network = await provider.getNetwork();
+        if (network.chainId !== 11155111n && network.chainId !== 1n) {
+          throw new Error('Please switch to Ethereum Mainnet or Sepolia');
+        }
+
+        document.getElementById('walletStatus').textContent = `Wallet: ${activeWallet.slice(0, 6)}...${activeWallet.slice(-4)}`;
+        document.getElementById('connectWalletBtn').textContent = 'WALLET SECURED';
+        document.getElementById('enterButton').disabled = false;
+        showStatus('Wallet connected successfully!', true);
+        await updateBattleStatus();
+      } catch (error) {
+        showStatus(`COMBAT ERROR: ${error.message}`);
+      }
+
+      try {
+        await updateBattleStatus();
+      } catch (error) {
+        showStatus(`Status update error: ${error.message}`);
+      }
+    }
+
+    async function enterLottery() {
+      if (!activeWallet) {
+        showStatus('Please connect wallet first');
+        return;
+      }
+
+      const enterButton = document.getElementById('enterButton');
+      enterButton.disabled = true;
+      showStatus('Processing entry...');
+
+      try {
+        const tx = await contract.enterLottery({
+          value: ethers.parseEther('0.1'),
+          gasLimit: 200000
+        });
+        showStatus('Transaction pending...');
+        await tx.wait();
+        showStatus('MISSION SUCCESS: ENTRY CONFIRMED', true);
+        await updateBattleStatus();
+      } catch (error) {
+        showStatus(`COMBAT ERROR: ${error.message}`);
+      } finally {
+        enterButton.disabled = false;
+      }
+    }
+
+    async function updateBattleStatus() {
+      try {
+        const contractReadOnly = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider || new ethers.BrowserProvider(window.ethereum));
+        const round = await contractReadOnly.currentRound();
+        document.getElementById('roundStatus').textContent = `Round: ${round}`;
+        document.getElementById('contractStatus').textContent = `Contract Wallet: ${TREASURY_ADDRESS.slice(0, 6)}...${TREASURY_ADDRESS.slice(-4)} (System Controlled)`;
+        showStatus(`Current round: ${round}`, true);
+      } catch (error) {
+        showStatus(`Status error: ${error.message}`);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('connectWalletBtn').addEventListener('click', connectWallet);
+      document.getElementById('enterButton').addEventListener('click', enterLottery);
+
+      try {
+        if (window.ethereum) {
+          provider = new ethers.BrowserProvider(window.ethereum);
+          contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+          await updateBattleStatus();
+        } else {
+          showStatus('Please install MetaMask or another wallet provider');
+        }
+      } catch (error) {
+        showStatus(`Initialization error: ${error.message}`);
+      }
+    });
+  </script>
+</body>
+</html>
